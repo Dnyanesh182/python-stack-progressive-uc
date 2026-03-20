@@ -1,6 +1,6 @@
-# UC2 - Implement Dynamic Stack with Capacity Control
+# UC3 - Build Stack Using Linked List
 
-from typing import Generic, TypeVar, List, Any, Optional
+from typing import Generic, TypeVar, Optional, Any
 
 T = TypeVar("T")
 
@@ -25,10 +25,19 @@ class StackValidationError(StackError):
     pass
 
 
+class Node(Generic[T]):
+    def __init__(self, data: T) -> None:
+        self.data: T = data
+        self.next: Optional["Node[T]"] = None
+
+
 class Stack(Generic[T]):
     """
-    Dynamic Stack ADT with encapsulation, validation,
-    optional maximum capacity, and automatic growth.
+    Dynamic Stack using Linked List with:
+    - encapsulation
+    - validation
+    - optional maximum capacity
+    - automatic growth behavior
     """
 
     def __init__(self, initial_capacity: int = 2, max_capacity: Optional[int] = None, allow_none: bool = False) -> None:
@@ -37,34 +46,45 @@ class Stack(Generic[T]):
         if max_capacity is not None and max_capacity < initial_capacity:
             raise ValueError("Max capacity cannot be less than initial capacity.")
 
-        self.__items: List[T] = []
-        self.__capacity = initial_capacity
-        self.__max_capacity = max_capacity
-        self.__allow_none = allow_none
+        self.__top: Optional[Node[T]] = None
+        self.__size: int = 0
+        self.__capacity: int = initial_capacity
+        self.__max_capacity: Optional[int] = max_capacity
+        self.__allow_none: bool = allow_none
 
     def push(self, item: T) -> None:
         self.__validate(item)
 
-        if self.size() >= self.__capacity:
+        if self.__size >= self.__capacity:
             self.__grow()
 
-        self.__items.append(item)
+        new_node = Node(item)
+        new_node.next = self.__top
+        self.__top = new_node
+        self.__size += 1
 
     def pop(self) -> T:
         if self.is_empty():
             raise StackUnderflowError("Cannot pop from an empty stack.")
-        return self.__items.pop()
+
+        assert self.__top is not None
+        popped_data = self.__top.data
+        self.__top = self.__top.next
+        self.__size -= 1
+        return popped_data
 
     def peek(self) -> T:
         if self.is_empty():
             raise StackUnderflowError("Cannot peek into an empty stack.")
-        return self.__items[-1]
+
+        assert self.__top is not None
+        return self.__top.data
 
     def is_empty(self) -> bool:
-        return len(self.__items) == 0
+        return self.__size == 0
 
     def size(self) -> int:
-        return len(self.__items)
+        return self.__size
 
     def capacity(self) -> int:
         return self.__capacity
@@ -72,8 +92,15 @@ class Stack(Generic[T]):
     def max_capacity(self) -> Optional[int]:
         return self.__max_capacity
 
-    def display(self) -> List[T]:
-        return self.__items.copy()
+    def display(self) -> list[T]:
+        elements: list[T] = []
+        current = self.__top
+
+        while current is not None:
+            elements.append(current.data)
+            current = current.next
+
+        return elements
 
     def __grow(self) -> None:
         new_capacity = self.__capacity * 2
@@ -91,7 +118,7 @@ class Stack(Generic[T]):
 
     def __repr__(self) -> str:
         return (
-            f"Stack(items={self.__items}, size={self.size()}, "
+            f"Stack(top_to_bottom={self.display()}, size={self.__size}, "
             f"capacity={self.__capacity}, max_capacity={self.__max_capacity})"
         )
 
@@ -100,7 +127,6 @@ def main() -> None:
     try:
         initial_capacity = int(input("Enter initial stack capacity: "))
         max_limit_input = input("Enter maximum stack capacity (press Enter for no limit): ").strip()
-
         max_capacity = int(max_limit_input) if max_limit_input else None
 
         stack = Stack[str](initial_capacity=initial_capacity, max_capacity=max_capacity)
@@ -112,13 +138,13 @@ def main() -> None:
             stack.push(value)
             print(f"Element '{value}' pushed successfully. Current capacity: {stack.capacity()}")
 
-        print("\nStack Elements:", stack.display())
+        print("\nStack Elements (Top to Bottom):", stack.display())
         print("Current Stack Size:", stack.size())
         print("Current Stack Capacity:", stack.capacity())
 
         print("\nTop Element:", stack.peek())
         print("Popped Element:", stack.pop())
-        print("Stack After Pop:", stack.display())
+        print("Stack After Pop (Top to Bottom):", stack.display())
 
     except ValueError as error:
         print("Input Error:", error)
