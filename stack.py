@@ -1,6 +1,7 @@
-# UC9 - Design Special Stack with O(1) Min and Max Retrieval
+# UC10 - Solve Advanced Stack Problems with Testing and Performance Analysis
 
 from typing import Generic, TypeVar, Optional, Any
+import time
 
 T = TypeVar("T")
 
@@ -34,7 +35,7 @@ class MultiStack(Generic[T]):
     - validation
     """
 
-    def __init__(self, initial_capacity: int = 6, max_capacity: Optional[int] = None, allow_none: bool = False) -> None:
+    def __init__(self, initial_capacity: int = 10, max_capacity: Optional[int] = None, allow_none: bool = False) -> None:
         if initial_capacity <= 1:
             raise ValueError("Initial capacity must be greater than 1.")
         if max_capacity is not None and max_capacity < initial_capacity:
@@ -108,12 +109,6 @@ class MultiStack(Generic[T]):
             return self.__capacity - self.__top2
         raise ValueError("Invalid stack number. Use 1 or 2.")
 
-    def total_size(self) -> int:
-        return self.size(1) + self.size(2)
-
-    def capacity(self) -> int:
-        return self.__capacity
-
     def display(self, stack_number: int) -> list[T]:
         if stack_number == 1:
             return [self.__array[i] for i in range(self.__top1, -1, -1)]  # type: ignore
@@ -151,112 +146,162 @@ class MultiStack(Generic[T]):
             raise StackValidationError("None value is not allowed in this stack.")
 
 
-class MinMaxStack:
+class StackAlgorithms:
     """
-    Special stack with:
-    - primary stack in Stack 1
-    - min tracking in Stack 2
-    - max tracking using separate internal stack
-    - O(1) min retrieval
-    - O(1) max retrieval
+    Advanced stack problems:
+    - Next Greater Element
+    - Stock Span
+    - Largest Rectangle in Histogram
+    """
+
+    def next_greater_element(self, numbers: list[int]) -> list[int]:
+        result = [-1] * len(numbers)
+        stack = MultiStack[int](initial_capacity=max(10, len(numbers)))
+
+        for index in range(len(numbers) - 1, -1, -1):
+            while not stack.is_empty(1) and stack.peek(1) <= numbers[index]:
+                stack.pop(1)
+
+            if not stack.is_empty(1):
+                result[index] = stack.peek(1)
+
+            stack.push(1, numbers[index])
+
+        return result
+
+    def stock_span(self, prices: list[int]) -> list[int]:
+        span = [0] * len(prices)
+        stack = MultiStack[int](initial_capacity=max(10, len(prices)))
+
+        for index in range(len(prices)):
+            while not stack.is_empty(1) and prices[stack.peek(1)] <= prices[index]:
+                stack.pop(1)
+
+            span[index] = index + 1 if stack.is_empty(1) else index - stack.peek(1)
+            stack.push(1, index)
+
+        return span
+
+    def largest_rectangle_area(self, heights: list[int]) -> int:
+        max_area = 0
+        stack = MultiStack[int](initial_capacity=max(10, len(heights)))
+        index = 0
+
+        while index < len(heights):
+            if stack.is_empty(1) or heights[stack.peek(1)] <= heights[index]:
+                stack.push(1, index)
+                index += 1
+            else:
+                top_index = stack.pop(1)
+                width = index if stack.is_empty(1) else index - stack.peek(1) - 1
+                area = heights[top_index] * width
+                max_area = max(max_area, area)
+
+        while not stack.is_empty(1):
+            top_index = stack.pop(1)
+            width = index if stack.is_empty(1) else index - stack.peek(1) - 1
+            area = heights[top_index] * width
+            max_area = max(max_area, area)
+
+        return max_area
+
+
+class StackTester:
+    """
+    Simple unit testing and performance analysis for advanced stack problems.
     """
 
     def __init__(self) -> None:
-        self.__main_stack = MultiStack[int](initial_capacity=10)
-        self.__max_stack: list[int] = []
+        self.algorithms = StackAlgorithms()
 
-    def push(self, value: int) -> None:
-        self.__main_stack.push(1, value)
+    def run_unit_tests(self) -> None:
+        print("\n--- Running Unit Tests ---")
 
-        if self.__main_stack.is_empty(2) or value <= self.__main_stack.peek(2):
-            self.__main_stack.push(2, value)
+        nge_input = [4, 5, 2, 10, 8]
+        nge_expected = [5, 10, 10, -1, -1]
+        nge_result = self.algorithms.next_greater_element(nge_input)
+        print("Next Greater Element Test:", "PASSED" if nge_result == nge_expected else "FAILED")
 
-        if not self.__max_stack or value >= self.__max_stack[-1]:
-            self.__max_stack.append(value)
+        span_input = [100, 80, 60, 70, 60, 75, 85]
+        span_expected = [1, 1, 1, 2, 1, 4, 6]
+        span_result = self.algorithms.stock_span(span_input)
+        print("Stock Span Test:", "PASSED" if span_result == span_expected else "FAILED")
 
-    def pop(self) -> int:
-        if self.is_empty():
-            raise StackUnderflowError("Cannot pop from an empty stack.")
+        histogram_input = [6, 2, 5, 4, 5, 1, 6]
+        histogram_expected = 12
+        histogram_result = self.algorithms.largest_rectangle_area(histogram_input)
+        print("Largest Rectangle Test:", "PASSED" if histogram_result == histogram_expected else "FAILED")
 
-        removed_value = self.__main_stack.pop(1)
+    def run_performance_analysis(self) -> None:
+        print("\n--- Performance Analysis ---")
 
-        if removed_value == self.__main_stack.peek(2):
-            self.__main_stack.pop(2)
+        large_data = list(range(1, 5001))
 
-        if removed_value == self.__max_stack[-1]:
-            self.__max_stack.pop()
+        start_time = time.perf_counter()
+        self.algorithms.next_greater_element(large_data)
+        end_time = time.perf_counter()
+        print(f"Next Greater Element Execution Time: {end_time - start_time:.6f} seconds | Time Complexity: O(n)")
 
-        return removed_value
+        start_time = time.perf_counter()
+        self.algorithms.stock_span(large_data)
+        end_time = time.perf_counter()
+        print(f"Stock Span Execution Time: {end_time - start_time:.6f} seconds | Time Complexity: O(n)")
 
-    def peek(self) -> int:
-        if self.is_empty():
-            raise StackUnderflowError("Cannot peek into an empty stack.")
-        return self.__main_stack.peek(1)
+        start_time = time.perf_counter()
+        self.algorithms.largest_rectangle_area(large_data)
+        end_time = time.perf_counter()
+        print(f"Largest Rectangle Execution Time: {end_time - start_time:.6f} seconds | Time Complexity: O(n)")
 
-    def get_min(self) -> int:
-        if self.is_empty():
-            raise StackUnderflowError("Cannot get minimum from an empty stack.")
-        return self.__main_stack.peek(2)
 
-    def get_max(self) -> int:
-        if self.is_empty():
-            raise StackUnderflowError("Cannot get maximum from an empty stack.")
-        return self.__max_stack[-1]
+def parse_integer_list(user_input: str) -> list[int]:
+    cleaned = user_input.strip()
+    if not cleaned:
+        raise ValueError("Input cannot be empty.")
 
-    def is_empty(self) -> bool:
-        return self.__main_stack.is_empty(1)
-
-    def size(self) -> int:
-        return self.__main_stack.size(1)
-
-    def display(self) -> list[int]:
-        return self.__main_stack.display(1)
+    return [int(value) for value in cleaned.split()]
 
 
 def main() -> None:
-    stack = MinMaxStack()
+    algorithms = StackAlgorithms()
+    tester = StackTester()
 
     while True:
         try:
-            print("\n--- Special Stack with O(1) Min and Max Retrieval ---")
-            print("1. Push")
-            print("2. Pop")
-            print("3. Peek")
-            print("4. Get Minimum")
-            print("5. Get Maximum")
-            print("6. Display Stack")
-            print("7. Get Size")
-            print("8. Exit")
+            print("\n--- Advanced Stack Problems ---")
+            print("1. Next Greater Element")
+            print("2. Stock Span Problem")
+            print("3. Largest Rectangle in Histogram")
+            print("4. Run Unit Tests")
+            print("5. Run Performance Analysis")
+            print("6. Exit")
 
             choice = input("Enter your choice: ").strip()
 
             if choice == "1":
-                value = int(input("Enter integer value to push: "))
-                stack.push(value)
-                print(f"Value {value} pushed successfully.")
-                print("Current Stack:", stack.display())
+                numbers = parse_integer_list(input("Enter integers separated by space: "))
+                result = algorithms.next_greater_element(numbers)
+                print("Input:", numbers)
+                print("Next Greater Elements:", result)
 
             elif choice == "2":
-                removed = stack.pop()
-                print(f"Popped Value: {removed}")
-                print("Current Stack:", stack.display())
+                prices = parse_integer_list(input("Enter stock prices separated by space: "))
+                result = algorithms.stock_span(prices)
+                print("Input:", prices)
+                print("Stock Span:", result)
 
             elif choice == "3":
-                print("Top Element:", stack.peek())
+                heights = parse_integer_list(input("Enter histogram heights separated by space: "))
+                result = algorithms.largest_rectangle_area(heights)
+                print("Input:", heights)
+                print("Largest Rectangle Area:", result)
 
             elif choice == "4":
-                print("Minimum Element:", stack.get_min())
+                tester.run_unit_tests()
 
             elif choice == "5":
-                print("Maximum Element:", stack.get_max())
+                tester.run_performance_analysis()
 
             elif choice == "6":
-                print("Stack Elements (Top to Bottom):", stack.display())
-
-            elif choice == "7":
-                print("Stack Size:", stack.size())
-
-            elif choice == "8":
                 print("Exiting program.")
                 break
 
