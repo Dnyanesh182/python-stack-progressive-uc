@@ -1,4 +1,4 @@
-# UC6 - Create Infix to Postfix and Prefix Conversion Engine
+# UC7 - Build Expression Evaluation System
 
 from typing import Generic, TypeVar, Optional, Any
 
@@ -157,10 +157,10 @@ class MultiStack(Generic[T]):
         )
 
 
-class ExpressionConverter:
+class ExpressionEngine:
     """
-    Converts infix expressions to postfix and prefix using stack,
-    operator precedence, and associativity.
+    Validates infix expressions, converts them to postfix and prefix,
+    and evaluates postfix and prefix expressions.
     """
 
     def __init__(self) -> None:
@@ -178,6 +178,9 @@ class ExpressionConverter:
 
     def __is_operand(self, char: str) -> bool:
         return char.isalnum()
+
+    def __is_numeric_operand(self, char: str) -> bool:
+        return char.isdigit()
 
     def __precedence_of(self, operator: str) -> int:
         return self.__precedence.get(operator, 0)
@@ -199,6 +202,21 @@ class ExpressionConverter:
 
     def __remove_spaces(self, expression: str) -> str:
         return "".join(expression.split())
+
+    def __apply_operator(self, left: float, right: float, operator: str) -> float:
+        if operator == '+':
+            return left + right
+        if operator == '-':
+            return left - right
+        if operator == '*':
+            return left * right
+        if operator == '/':
+            if right == 0:
+                raise ValueError("Division by zero is not allowed.")
+            return left / right
+        if operator == '^':
+            return left ** right
+        raise ValueError(f"Unsupported operator: {operator}")
 
     def validate_symbols(self, expression: str) -> tuple[bool, str]:
         stack = MultiStack[str](initial_capacity=max(4, len(expression)))
@@ -285,32 +303,87 @@ class ExpressionConverter:
         prefix = postfix_of_reversed[::-1]
         return prefix
 
+    def evaluate_postfix(self, expression: str) -> float:
+        expression = self.__remove_spaces(expression)
+        value_stack = MultiStack[float](initial_capacity=max(4, len(expression)))
+
+        for char in expression:
+            if self.__is_numeric_operand(char):
+                value_stack.push(1, float(char))
+
+            elif self.__is_operator(char):
+                if value_stack.size(1) < 2:
+                    raise ValueError("Invalid postfix expression: insufficient operands.")
+
+                right = value_stack.pop(1)
+                left = value_stack.pop(1)
+                result = self.__apply_operator(left, right, char)
+                value_stack.push(1, result)
+
+            else:
+                raise ValueError(f"Invalid character in postfix expression: '{char}'")
+
+        if value_stack.size(1) != 1:
+            raise ValueError("Invalid postfix expression: too many operands or operators.")
+
+        return value_stack.pop(1)
+
+    def evaluate_prefix(self, expression: str) -> float:
+        expression = self.__remove_spaces(expression)
+        value_stack = MultiStack[float](initial_capacity=max(4, len(expression)))
+
+        for char in expression[::-1]:
+            if self.__is_numeric_operand(char):
+                value_stack.push(1, float(char))
+
+            elif self.__is_operator(char):
+                if value_stack.size(1) < 2:
+                    raise ValueError("Invalid prefix expression: insufficient operands.")
+
+                left = value_stack.pop(1)
+                right = value_stack.pop(1)
+                result = self.__apply_operator(left, right, char)
+                value_stack.push(1, result)
+
+            else:
+                raise ValueError(f"Invalid character in prefix expression: '{char}'")
+
+        if value_stack.size(1) != 1:
+            raise ValueError("Invalid prefix expression: too many operands or operators.")
+
+        return value_stack.pop(1)
+
 
 def main() -> None:
     try:
-        expression = input("Enter an infix expression: ").strip()
+        expression = input("Enter an infix expression using single-digit numbers: ").strip()
 
         if not expression:
             print("Input Error: Expression cannot be empty.")
             return
 
-        converter = ExpressionConverter()
+        engine = ExpressionEngine()
 
-        is_valid, message = converter.validate_symbols(expression)
+        is_valid, message = engine.validate_symbols(expression)
         if not is_valid:
             print("\nExpression:", expression)
             print("Validation Result:", is_valid)
             print("Message:", message)
             return
 
-        postfix = converter.infix_to_postfix(expression)
-        prefix = converter.infix_to_prefix(expression)
+        postfix = engine.infix_to_postfix(expression)
+        prefix = engine.infix_to_prefix(expression)
+
+        postfix_result = engine.evaluate_postfix(postfix)
+        prefix_result = engine.evaluate_prefix(prefix)
 
         print("\nExpression:", expression)
         print("Validation Result:", is_valid)
         print("Message:", message)
         print("Postfix Expression:", postfix)
         print("Prefix Expression:", prefix)
+        print("Postfix Evaluation Result:", postfix_result)
+        print("Prefix Evaluation Result:", prefix_result)
 
     except ValueError as error:
         print("Input Error:", error)
