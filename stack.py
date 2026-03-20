@@ -1,4 +1,4 @@
-# UC5 - Develop Advanced Parentheses and Symbol Validator
+# UC6 - Create Infix to Postfix and Prefix Conversion Engine
 
 from typing import Generic, TypeVar, Optional, Any
 
@@ -157,34 +157,67 @@ class MultiStack(Generic[T]):
         )
 
 
-class SymbolValidator:
+class ExpressionConverter:
     """
-    Uses Stack 1 from MultiStack to validate:
-    - (), {}, []
-    - nested expressions
-    - mismatched brackets
+    Converts infix expressions to postfix and prefix using stack,
+    operator precedence, and associativity.
     """
 
     def __init__(self) -> None:
-        self.__pairs = {
+        self.__operators = {'+', '-', '*', '/', '^'}
+        self.__precedence = {
+            '+': 1,
+            '-': 1,
+            '*': 2,
+            '/': 2,
+            '^': 3
+        }
+
+    def __is_operator(self, char: str) -> bool:
+        return char in self.__operators
+
+    def __is_operand(self, char: str) -> bool:
+        return char.isalnum()
+
+    def __precedence_of(self, operator: str) -> int:
+        return self.__precedence.get(operator, 0)
+
+    def __is_right_associative(self, operator: str) -> bool:
+        return operator == '^'
+
+    def __has_higher_precedence(self, top_operator: str, current_operator: str) -> bool:
+        top_precedence = self.__precedence_of(top_operator)
+        current_precedence = self.__precedence_of(current_operator)
+
+        if top_precedence > current_precedence:
+            return True
+
+        if top_precedence == current_precedence and not self.__is_right_associative(current_operator):
+            return True
+
+        return False
+
+    def __remove_spaces(self, expression: str) -> str:
+        return "".join(expression.split())
+
+    def validate_symbols(self, expression: str) -> tuple[bool, str]:
+        stack = MultiStack[str](initial_capacity=max(4, len(expression)))
+
+        pairs = {
             ')': '(',
             '}': '{',
             ']': '['
         }
 
-    def validate(self, expression: str) -> tuple[bool, str]:
-        stack = MultiStack[str](initial_capacity=max(4, len(expression)))
-
         for index, char in enumerate(expression):
             if char in "({[":
                 stack.push(1, char)
-
             elif char in ")}]":
                 if stack.is_empty(1):
                     return False, f"Unmatched closing bracket '{char}' at position {index}."
 
                 top_symbol = stack.pop(1)
-                if top_symbol != self.__pairs[char]:
+                if top_symbol != pairs[char]:
                     return False, (
                         f"Mismatched bracket at position {index}: "
                         f"expected matching for '{top_symbol}', found '{char}'."
@@ -195,21 +228,89 @@ class SymbolValidator:
 
         return True, "Expression is balanced."
 
+    def infix_to_postfix(self, expression: str) -> str:
+        expression = self.__remove_spaces(expression)
+        operator_stack = MultiStack[str](initial_capacity=max(4, len(expression)))
+        postfix: list[str] = []
+
+        for char in expression:
+            if self.__is_operand(char):
+                postfix.append(char)
+
+            elif char == '(':
+                operator_stack.push(1, char)
+
+            elif char == ')':
+                while not operator_stack.is_empty(1) and operator_stack.peek(1) != '(':
+                    postfix.append(operator_stack.pop(1))
+
+                if operator_stack.is_empty(1):
+                    raise ValueError("Invalid expression: unmatched closing parenthesis.")
+                operator_stack.pop(1)
+
+            elif self.__is_operator(char):
+                while (
+                    not operator_stack.is_empty(1)
+                    and operator_stack.peek(1) != '('
+                    and self.__has_higher_precedence(operator_stack.peek(1), char)
+                ):
+                    postfix.append(operator_stack.pop(1))
+
+                operator_stack.push(1, char)
+
+            else:
+                raise ValueError(f"Invalid character found in expression: '{char}'")
+
+        while not operator_stack.is_empty(1):
+            top = operator_stack.pop(1)
+            if top == '(':
+                raise ValueError("Invalid expression: unmatched opening parenthesis.")
+            postfix.append(top)
+
+        return "".join(postfix)
+
+    def infix_to_prefix(self, expression: str) -> str:
+        expression = self.__remove_spaces(expression)
+
+        reversed_expression = ""
+        for char in expression[::-1]:
+            if char == '(':
+                reversed_expression += ')'
+            elif char == ')':
+                reversed_expression += '('
+            else:
+                reversed_expression += char
+
+        postfix_of_reversed = self.infix_to_postfix(reversed_expression)
+        prefix = postfix_of_reversed[::-1]
+        return prefix
+
 
 def main() -> None:
     try:
-        expression = input("Enter an expression to validate: ").strip()
+        expression = input("Enter an infix expression: ").strip()
 
         if not expression:
             print("Input Error: Expression cannot be empty.")
             return
 
-        validator = SymbolValidator()
-        is_valid, message = validator.validate(expression)
+        converter = ExpressionConverter()
+
+        is_valid, message = converter.validate_symbols(expression)
+        if not is_valid:
+            print("\nExpression:", expression)
+            print("Validation Result:", is_valid)
+            print("Message:", message)
+            return
+
+        postfix = converter.infix_to_postfix(expression)
+        prefix = converter.infix_to_prefix(expression)
 
         print("\nExpression:", expression)
         print("Validation Result:", is_valid)
         print("Message:", message)
+        print("Postfix Expression:", postfix)
+        print("Prefix Expression:", prefix)
 
     except ValueError as error:
         print("Input Error:", error)
