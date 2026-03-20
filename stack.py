@@ -1,4 +1,4 @@
-# UC8 - Implement Undo/Redo State Management System
+# UC9 - Design Special Stack with O(1) Min and Max Retrieval
 
 from typing import Generic, TypeVar, Optional, Any
 
@@ -34,7 +34,7 @@ class MultiStack(Generic[T]):
     - validation
     """
 
-    def __init__(self, initial_capacity: int = 4, max_capacity: Optional[int] = None, allow_none: bool = False) -> None:
+    def __init__(self, initial_capacity: int = 6, max_capacity: Optional[int] = None, allow_none: bool = False) -> None:
         if initial_capacity <= 1:
             raise ValueError("Initial capacity must be greater than 1.")
         if max_capacity is not None and max_capacity < initial_capacity:
@@ -114,21 +114,6 @@ class MultiStack(Generic[T]):
     def capacity(self) -> int:
         return self.__capacity
 
-    def clear(self, stack_number: int) -> None:
-        if stack_number == 1:
-            while self.__top1 != -1:
-                self.__array[self.__top1] = None
-                self.__top1 -= 1
-            return
-
-        if stack_number == 2:
-            while self.__top2 != self.__capacity:
-                self.__array[self.__top2] = None
-                self.__top2 += 1
-            return
-
-        raise ValueError("Invalid stack number. Use 1 or 2.")
-
     def display(self, stack_number: int) -> list[T]:
         if stack_number == 1:
             return [self.__array[i] for i in range(self.__top1, -1, -1)]  # type: ignore
@@ -165,107 +150,123 @@ class MultiStack(Generic[T]):
         if item is None and not self.__allow_none:
             raise StackValidationError("None value is not allowed in this stack.")
 
-    def __repr__(self) -> str:
-        return (
-            f"MultiStack(stack1={self.display(1)}, stack2={self.display(2)}, "
-            f"total_size={self.total_size()}, capacity={self.__capacity})"
-        )
 
-
-class TextEditorStateManager:
+class MinMaxStack:
     """
-    Undo/Redo system using two stacks:
-    - Stack 1 for undo history
-    - Stack 2 for redo history
+    Special stack with:
+    - primary stack in Stack 1
+    - min tracking in Stack 2
+    - max tracking using separate internal stack
+    - O(1) min retrieval
+    - O(1) max retrieval
     """
 
     def __init__(self) -> None:
-        self.__history = MultiStack[str](initial_capacity=10)
-        self.__current_text = ""
+        self.__main_stack = MultiStack[int](initial_capacity=10)
+        self.__max_stack: list[int] = []
 
-    def type_text(self, new_text: str) -> None:
-        self.__history.push(1, self.__current_text)
-        self.__current_text += new_text
-        self.__history.clear(2)
+    def push(self, value: int) -> None:
+        self.__main_stack.push(1, value)
 
-    def undo(self) -> str:
-        if self.__history.is_empty(1):
-            raise StackUnderflowError("No actions available to undo.")
+        if self.__main_stack.is_empty(2) or value <= self.__main_stack.peek(2):
+            self.__main_stack.push(2, value)
 
-        self.__history.push(2, self.__current_text)
-        self.__current_text = self.__history.pop(1)
-        return self.__current_text
+        if not self.__max_stack or value >= self.__max_stack[-1]:
+            self.__max_stack.append(value)
 
-    def redo(self) -> str:
-        if self.__history.is_empty(2):
-            raise StackUnderflowError("No actions available to redo.")
+    def pop(self) -> int:
+        if self.is_empty():
+            raise StackUnderflowError("Cannot pop from an empty stack.")
 
-        self.__history.push(1, self.__current_text)
-        self.__current_text = self.__history.pop(2)
-        return self.__current_text
+        removed_value = self.__main_stack.pop(1)
 
-    def get_current_text(self) -> str:
-        return self.__current_text
+        if removed_value == self.__main_stack.peek(2):
+            self.__main_stack.pop(2)
 
-    def show_undo_history(self) -> list[str]:
-        return self.__history.display(1)
+        if removed_value == self.__max_stack[-1]:
+            self.__max_stack.pop()
 
-    def show_redo_history(self) -> list[str]:
-        return self.__history.display(2)
+        return removed_value
+
+    def peek(self) -> int:
+        if self.is_empty():
+            raise StackUnderflowError("Cannot peek into an empty stack.")
+        return self.__main_stack.peek(1)
+
+    def get_min(self) -> int:
+        if self.is_empty():
+            raise StackUnderflowError("Cannot get minimum from an empty stack.")
+        return self.__main_stack.peek(2)
+
+    def get_max(self) -> int:
+        if self.is_empty():
+            raise StackUnderflowError("Cannot get maximum from an empty stack.")
+        return self.__max_stack[-1]
+
+    def is_empty(self) -> bool:
+        return self.__main_stack.is_empty(1)
+
+    def size(self) -> int:
+        return self.__main_stack.size(1)
+
+    def display(self) -> list[int]:
+        return self.__main_stack.display(1)
 
 
 def main() -> None:
-    manager = TextEditorStateManager()
+    stack = MinMaxStack()
 
     while True:
         try:
-            print("\n--- Undo/Redo State Management System ---")
-            print("1. Type Text")
-            print("2. Undo")
-            print("3. Redo")
-            print("4. Show Current Text")
-            print("5. Show Undo History")
-            print("6. Show Redo History")
-            print("7. Exit")
+            print("\n--- Special Stack with O(1) Min and Max Retrieval ---")
+            print("1. Push")
+            print("2. Pop")
+            print("3. Peek")
+            print("4. Get Minimum")
+            print("5. Get Maximum")
+            print("6. Display Stack")
+            print("7. Get Size")
+            print("8. Exit")
 
             choice = input("Enter your choice: ").strip()
 
             if choice == "1":
-                text = input("Enter text to append: ")
-                manager.type_text(text)
-                print("Text added successfully.")
-                print("Current Text:", manager.get_current_text())
+                value = int(input("Enter integer value to push: "))
+                stack.push(value)
+                print(f"Value {value} pushed successfully.")
+                print("Current Stack:", stack.display())
 
             elif choice == "2":
-                updated_text = manager.undo()
-                print("Undo successful.")
-                print("Current Text:", updated_text)
+                removed = stack.pop()
+                print(f"Popped Value: {removed}")
+                print("Current Stack:", stack.display())
 
             elif choice == "3":
-                updated_text = manager.redo()
-                print("Redo successful.")
-                print("Current Text:", updated_text)
+                print("Top Element:", stack.peek())
 
             elif choice == "4":
-                print("Current Text:", manager.get_current_text())
+                print("Minimum Element:", stack.get_min())
 
             elif choice == "5":
-                print("Undo History:", manager.show_undo_history())
+                print("Maximum Element:", stack.get_max())
 
             elif choice == "6":
-                print("Redo History:", manager.show_redo_history())
+                print("Stack Elements (Top to Bottom):", stack.display())
 
             elif choice == "7":
+                print("Stack Size:", stack.size())
+
+            elif choice == "8":
                 print("Exiting program.")
                 break
 
             else:
                 print("Invalid choice. Please select a valid option.")
 
-        except StackError as error:
-            print("Stack Error:", error)
         except ValueError as error:
             print("Input Error:", error)
+        except StackError as error:
+            print("Stack Error:", error)
 
 
 if __name__ == "__main__":
