@@ -1,4 +1,4 @@
-# UC7 - Build Expression Evaluation System
+# UC8 - Implement Undo/Redo State Management System
 
 from typing import Generic, TypeVar, Optional, Any
 
@@ -114,6 +114,21 @@ class MultiStack(Generic[T]):
     def capacity(self) -> int:
         return self.__capacity
 
+    def clear(self, stack_number: int) -> None:
+        if stack_number == 1:
+            while self.__top1 != -1:
+                self.__array[self.__top1] = None
+                self.__top1 -= 1
+            return
+
+        if stack_number == 2:
+            while self.__top2 != self.__capacity:
+                self.__array[self.__top2] = None
+                self.__top2 += 1
+            return
+
+        raise ValueError("Invalid stack number. Use 1 or 2.")
+
     def display(self, stack_number: int) -> list[T]:
         if stack_number == 1:
             return [self.__array[i] for i in range(self.__top1, -1, -1)]  # type: ignore
@@ -157,238 +172,100 @@ class MultiStack(Generic[T]):
         )
 
 
-class ExpressionEngine:
+class TextEditorStateManager:
     """
-    Validates infix expressions, converts them to postfix and prefix,
-    and evaluates postfix and prefix expressions.
+    Undo/Redo system using two stacks:
+    - Stack 1 for undo history
+    - Stack 2 for redo history
     """
 
     def __init__(self) -> None:
-        self.__operators = {'+', '-', '*', '/', '^'}
-        self.__precedence = {
-            '+': 1,
-            '-': 1,
-            '*': 2,
-            '/': 2,
-            '^': 3
-        }
+        self.__history = MultiStack[str](initial_capacity=10)
+        self.__current_text = ""
 
-    def __is_operator(self, char: str) -> bool:
-        return char in self.__operators
+    def type_text(self, new_text: str) -> None:
+        self.__history.push(1, self.__current_text)
+        self.__current_text += new_text
+        self.__history.clear(2)
 
-    def __is_operand(self, char: str) -> bool:
-        return char.isalnum()
+    def undo(self) -> str:
+        if self.__history.is_empty(1):
+            raise StackUnderflowError("No actions available to undo.")
 
-    def __is_numeric_operand(self, char: str) -> bool:
-        return char.isdigit()
+        self.__history.push(2, self.__current_text)
+        self.__current_text = self.__history.pop(1)
+        return self.__current_text
 
-    def __precedence_of(self, operator: str) -> int:
-        return self.__precedence.get(operator, 0)
+    def redo(self) -> str:
+        if self.__history.is_empty(2):
+            raise StackUnderflowError("No actions available to redo.")
 
-    def __is_right_associative(self, operator: str) -> bool:
-        return operator == '^'
+        self.__history.push(1, self.__current_text)
+        self.__current_text = self.__history.pop(2)
+        return self.__current_text
 
-    def __has_higher_precedence(self, top_operator: str, current_operator: str) -> bool:
-        top_precedence = self.__precedence_of(top_operator)
-        current_precedence = self.__precedence_of(current_operator)
+    def get_current_text(self) -> str:
+        return self.__current_text
 
-        if top_precedence > current_precedence:
-            return True
+    def show_undo_history(self) -> list[str]:
+        return self.__history.display(1)
 
-        if top_precedence == current_precedence and not self.__is_right_associative(current_operator):
-            return True
-
-        return False
-
-    def __remove_spaces(self, expression: str) -> str:
-        return "".join(expression.split())
-
-    def __apply_operator(self, left: float, right: float, operator: str) -> float:
-        if operator == '+':
-            return left + right
-        if operator == '-':
-            return left - right
-        if operator == '*':
-            return left * right
-        if operator == '/':
-            if right == 0:
-                raise ValueError("Division by zero is not allowed.")
-            return left / right
-        if operator == '^':
-            return left ** right
-        raise ValueError(f"Unsupported operator: {operator}")
-
-    def validate_symbols(self, expression: str) -> tuple[bool, str]:
-        stack = MultiStack[str](initial_capacity=max(4, len(expression)))
-
-        pairs = {
-            ')': '(',
-            '}': '{',
-            ']': '['
-        }
-
-        for index, char in enumerate(expression):
-            if char in "({[":
-                stack.push(1, char)
-            elif char in ")}]":
-                if stack.is_empty(1):
-                    return False, f"Unmatched closing bracket '{char}' at position {index}."
-
-                top_symbol = stack.pop(1)
-                if top_symbol != pairs[char]:
-                    return False, (
-                        f"Mismatched bracket at position {index}: "
-                        f"expected matching for '{top_symbol}', found '{char}'."
-                    )
-
-        if not stack.is_empty(1):
-            return False, "Unmatched opening bracket(s) found in expression."
-
-        return True, "Expression is balanced."
-
-    def infix_to_postfix(self, expression: str) -> str:
-        expression = self.__remove_spaces(expression)
-        operator_stack = MultiStack[str](initial_capacity=max(4, len(expression)))
-        postfix: list[str] = []
-
-        for char in expression:
-            if self.__is_operand(char):
-                postfix.append(char)
-
-            elif char == '(':
-                operator_stack.push(1, char)
-
-            elif char == ')':
-                while not operator_stack.is_empty(1) and operator_stack.peek(1) != '(':
-                    postfix.append(operator_stack.pop(1))
-
-                if operator_stack.is_empty(1):
-                    raise ValueError("Invalid expression: unmatched closing parenthesis.")
-                operator_stack.pop(1)
-
-            elif self.__is_operator(char):
-                while (
-                    not operator_stack.is_empty(1)
-                    and operator_stack.peek(1) != '('
-                    and self.__has_higher_precedence(operator_stack.peek(1), char)
-                ):
-                    postfix.append(operator_stack.pop(1))
-
-                operator_stack.push(1, char)
-
-            else:
-                raise ValueError(f"Invalid character found in expression: '{char}'")
-
-        while not operator_stack.is_empty(1):
-            top = operator_stack.pop(1)
-            if top == '(':
-                raise ValueError("Invalid expression: unmatched opening parenthesis.")
-            postfix.append(top)
-
-        return "".join(postfix)
-
-    def infix_to_prefix(self, expression: str) -> str:
-        expression = self.__remove_spaces(expression)
-
-        reversed_expression = ""
-        for char in expression[::-1]:
-            if char == '(':
-                reversed_expression += ')'
-            elif char == ')':
-                reversed_expression += '('
-            else:
-                reversed_expression += char
-
-        postfix_of_reversed = self.infix_to_postfix(reversed_expression)
-        prefix = postfix_of_reversed[::-1]
-        return prefix
-
-    def evaluate_postfix(self, expression: str) -> float:
-        expression = self.__remove_spaces(expression)
-        value_stack = MultiStack[float](initial_capacity=max(4, len(expression)))
-
-        for char in expression:
-            if self.__is_numeric_operand(char):
-                value_stack.push(1, float(char))
-
-            elif self.__is_operator(char):
-                if value_stack.size(1) < 2:
-                    raise ValueError("Invalid postfix expression: insufficient operands.")
-
-                right = value_stack.pop(1)
-                left = value_stack.pop(1)
-                result = self.__apply_operator(left, right, char)
-                value_stack.push(1, result)
-
-            else:
-                raise ValueError(f"Invalid character in postfix expression: '{char}'")
-
-        if value_stack.size(1) != 1:
-            raise ValueError("Invalid postfix expression: too many operands or operators.")
-
-        return value_stack.pop(1)
-
-    def evaluate_prefix(self, expression: str) -> float:
-        expression = self.__remove_spaces(expression)
-        value_stack = MultiStack[float](initial_capacity=max(4, len(expression)))
-
-        for char in expression[::-1]:
-            if self.__is_numeric_operand(char):
-                value_stack.push(1, float(char))
-
-            elif self.__is_operator(char):
-                if value_stack.size(1) < 2:
-                    raise ValueError("Invalid prefix expression: insufficient operands.")
-
-                left = value_stack.pop(1)
-                right = value_stack.pop(1)
-                result = self.__apply_operator(left, right, char)
-                value_stack.push(1, result)
-
-            else:
-                raise ValueError(f"Invalid character in prefix expression: '{char}'")
-
-        if value_stack.size(1) != 1:
-            raise ValueError("Invalid prefix expression: too many operands or operators.")
-
-        return value_stack.pop(1)
+    def show_redo_history(self) -> list[str]:
+        return self.__history.display(2)
 
 
 def main() -> None:
-    try:
-        expression = input("Enter an infix expression using single-digit numbers: ").strip()
+    manager = TextEditorStateManager()
 
-        if not expression:
-            print("Input Error: Expression cannot be empty.")
-            return
+    while True:
+        try:
+            print("\n--- Undo/Redo State Management System ---")
+            print("1. Type Text")
+            print("2. Undo")
+            print("3. Redo")
+            print("4. Show Current Text")
+            print("5. Show Undo History")
+            print("6. Show Redo History")
+            print("7. Exit")
 
-        engine = ExpressionEngine()
+            choice = input("Enter your choice: ").strip()
 
-        is_valid, message = engine.validate_symbols(expression)
-        if not is_valid:
-            print("\nExpression:", expression)
-            print("Validation Result:", is_valid)
-            print("Message:", message)
-            return
+            if choice == "1":
+                text = input("Enter text to append: ")
+                manager.type_text(text)
+                print("Text added successfully.")
+                print("Current Text:", manager.get_current_text())
 
-        postfix = engine.infix_to_postfix(expression)
-        prefix = engine.infix_to_prefix(expression)
+            elif choice == "2":
+                updated_text = manager.undo()
+                print("Undo successful.")
+                print("Current Text:", updated_text)
 
-        postfix_result = engine.evaluate_postfix(postfix)
-        prefix_result = engine.evaluate_prefix(prefix)
+            elif choice == "3":
+                updated_text = manager.redo()
+                print("Redo successful.")
+                print("Current Text:", updated_text)
 
-        print("\nExpression:", expression)
-        print("Validation Result:", is_valid)
-        print("Message:", message)
-        print("Postfix Expression:", postfix)
-        print("Prefix Expression:", prefix)
-        print("Postfix Evaluation Result:", postfix_result)
-        print("Prefix Evaluation Result:", prefix_result)
+            elif choice == "4":
+                print("Current Text:", manager.get_current_text())
 
-    except ValueError as error:
-        print("Input Error:", error)
-    except StackError as error:
-        print("Stack Error:", error)
+            elif choice == "5":
+                print("Undo History:", manager.show_undo_history())
+
+            elif choice == "6":
+                print("Redo History:", manager.show_redo_history())
+
+            elif choice == "7":
+                print("Exiting program.")
+                break
+
+            else:
+                print("Invalid choice. Please select a valid option.")
+
+        except StackError as error:
+            print("Stack Error:", error)
+        except ValueError as error:
+            print("Input Error:", error)
 
 
 if __name__ == "__main__":
