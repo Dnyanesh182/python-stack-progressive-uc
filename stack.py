@@ -1,4 +1,4 @@
-# UC4 - Implement Multiple Stacks in a Single Array
+# UC5 - Develop Advanced Parentheses and Symbol Validator
 
 from typing import Generic, TypeVar, Optional, Any
 
@@ -27,8 +27,7 @@ class StackValidationError(StackError):
 
 class MultiStack(Generic[T]):
     """
-    Multiple stacks in a single shared array with:
-    - two independent stacks
+    Two stacks in a single shared array with:
     - memory-efficient storage
     - dynamic growth
     - optional maximum capacity
@@ -45,7 +44,6 @@ class MultiStack(Generic[T]):
         self.__capacity = initial_capacity
         self.__max_capacity = max_capacity
         self.__allow_none = allow_none
-
         self.__top1 = -1
         self.__top2 = initial_capacity
 
@@ -159,38 +157,59 @@ class MultiStack(Generic[T]):
         )
 
 
+class SymbolValidator:
+    """
+    Uses Stack 1 from MultiStack to validate:
+    - (), {}, []
+    - nested expressions
+    - mismatched brackets
+    """
+
+    def __init__(self) -> None:
+        self.__pairs = {
+            ')': '(',
+            '}': '{',
+            ']': '['
+        }
+
+    def validate(self, expression: str) -> tuple[bool, str]:
+        stack = MultiStack[str](initial_capacity=max(4, len(expression)))
+
+        for index, char in enumerate(expression):
+            if char in "({[":
+                stack.push(1, char)
+
+            elif char in ")}]":
+                if stack.is_empty(1):
+                    return False, f"Unmatched closing bracket '{char}' at position {index}."
+
+                top_symbol = stack.pop(1)
+                if top_symbol != self.__pairs[char]:
+                    return False, (
+                        f"Mismatched bracket at position {index}: "
+                        f"expected matching for '{top_symbol}', found '{char}'."
+                    )
+
+        if not stack.is_empty(1):
+            return False, "Unmatched opening bracket(s) found in expression."
+
+        return True, "Expression is balanced."
+
+
 def main() -> None:
     try:
-        initial_capacity = int(input("Enter initial shared array capacity: "))
-        max_limit_input = input("Enter maximum shared capacity (press Enter for no limit): ").strip()
-        max_capacity = int(max_limit_input) if max_limit_input else None
+        expression = input("Enter an expression to validate: ").strip()
 
-        stacks = MultiStack[str](initial_capacity=initial_capacity, max_capacity=max_capacity)
+        if not expression:
+            print("Input Error: Expression cannot be empty.")
+            return
 
-        n1 = int(input("Enter number of elements to push into Stack 1: "))
-        for i in range(n1):
-            value = input(f"Enter element {i + 1} for Stack 1: ")
-            stacks.push(1, value)
-            print(f"Element '{value}' pushed into Stack 1. Current shared capacity: {stacks.capacity()}")
+        validator = SymbolValidator()
+        is_valid, message = validator.validate(expression)
 
-        n2 = int(input("\nEnter number of elements to push into Stack 2: "))
-        for i in range(n2):
-            value = input(f"Enter element {i + 1} for Stack 2: ")
-            stacks.push(2, value)
-            print(f"Element '{value}' pushed into Stack 2. Current shared capacity: {stacks.capacity()}")
-
-        print("\nStack 1 (Top to Bottom):", stacks.display(1))
-        print("Stack 2 (Top to Bottom):", stacks.display(2))
-        print("Stack 1 Top Element:", stacks.peek(1))
-        print("Stack 2 Top Element:", stacks.peek(2))
-
-        print("\nPopped from Stack 1:", stacks.pop(1))
-        print("Popped from Stack 2:", stacks.pop(2))
-
-        print("\nStack 1 After Pop:", stacks.display(1))
-        print("Stack 2 After Pop:", stacks.display(2))
-        print("Total Elements in Shared Array:", stacks.total_size())
-        print("Current Shared Capacity:", stacks.capacity())
+        print("\nExpression:", expression)
+        print("Validation Result:", is_valid)
+        print("Message:", message)
 
     except ValueError as error:
         print("Input Error:", error)
